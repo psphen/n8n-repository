@@ -1,0 +1,219 @@
+networks:
+  n8n-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: n8n_local_postgres
+  redis_data:
+    name: n8n_local_redis
+  n8n_main1_data:
+    name: n8n_local_main1
+  n8n_main2_data:
+    name: n8n_local_main2
+  n8n_worker_data:
+    name: n8n_local_worker
+
+services:
+
+  # ─── BASE DE DATOS ────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: n8n-local-postgres
+    restart: always
+    networks:
+      - n8n-net
+    ports:
+      - "5432:5432"          # acceso directo desde tu PC si lo necesitas
+    environment:
+      - POSTGRES_USER=n8n_user
+      - POSTGRES_PASSWORD=PostgresSQL
+      - POSTGRES_DB=n8n_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n_user -d n8n_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── COLA DE MENSAJES ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: n8n-local-redis
+    restart: always
+    networks:
+      - n8n-net
+    ports:
+      - "6379:6379"          # acceso directo desde tu PC si lo necesitas
+    command: redis-server --bind 0.0.0.0 --protected-mode no
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── N8N MAIN 1 ───────────────────────────────────────────────
+  n8n-main-1:
+    image: n8nio/n8n:2.8.4
+    container_name: n8n-local-main1
+    restart: always
+    networks:
+      - n8n-net
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - EXECUTIONS_MODE=queue
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n_db
+      - DB_POSTGRESDB_USER=n8n_user
+      - DB_POSTGRESDB_PASSWORD=PostgresSQL
+      - N8N_ENCRYPTION_KEY=main1VMn8nArtics
+      - N8N_SECURE_COOKIE=false
+      - N8N_EDITOR_BASE_URL=http://localhost:8080
+      - WEBHOOK_URL=http://localhost:8080
+      - N8N_PROXY_HOPS=1
+      - N8N_PUSH_BACKEND=websocket
+    volumes:
+      - n8n_main1_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ─── N8N MAIN 2 ───────────────────────────────────────────────
+  n8n-main-2:
+    image: n8nio/n8n:2.8.4
+    container_name: n8n-local-main2
+    restart: always
+    networks:
+      - n8n-net
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - EXECUTIONS_MODE=queue
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n_db
+      - DB_POSTGRESDB_USER=n8n_user
+      - DB_POSTGRESDB_PASSWORD=PostgresSQL
+      - N8N_ENCRYPTION_KEY=main1VMn8nArtics
+      - N8N_SECURE_COOKIE=false
+      - N8N_EDITOR_BASE_URL=http://localhost:8080
+      - WEBHOOK_URL=http://localhost:8080
+      - N8N_PROXY_HOPS=1
+      - N8N_PUSH_BACKEND=websocket
+    volumes:
+      - n8n_main2_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ─── WORKERS ──────────────────────────────────────────────────
+  n8n-worker-1:
+    image: n8nio/n8n:2.8.4
+    container_name: n8n-local-worker-1
+    restart: always
+    networks:
+      - n8n-net
+    command: worker --concurrency=10
+    environment:
+      - EXECUTIONS_MODE=queue
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n_db
+      - DB_POSTGRESDB_USER=n8n_user
+      - DB_POSTGRESDB_PASSWORD=PostgresSQL
+      - N8N_ENCRYPTION_KEY=main1VMn8nArtics
+      - N8N_DISABLE_UI=true
+    volumes:
+      - n8n_worker_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  n8n-worker-2:
+    image: n8nio/n8n:2.8.4
+    container_name: n8n-local-worker-2
+    restart: always
+    networks:
+      - n8n-net
+    command: worker --concurrency=10
+    environment:
+      - EXECUTIONS_MODE=queue
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n_db
+      - DB_POSTGRESDB_USER=n8n_user
+      - DB_POSTGRESDB_PASSWORD=PostgresSQL
+      - N8N_ENCRYPTION_KEY=main1VMn8nArtics
+      - N8N_DISABLE_UI=true
+    volumes:
+      - n8n_worker_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  n8n-worker-3:
+    image: n8nio/n8n:2.8.4
+    container_name: n8n-local-worker-3
+    restart: always
+    networks:
+      - n8n-net
+    command: worker --concurrency=10
+    environment:
+      - EXECUTIONS_MODE=queue
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n_db
+      - DB_POSTGRESDB_USER=n8n_user
+      - DB_POSTGRESDB_PASSWORD=PostgresSQL
+      - N8N_ENCRYPTION_KEY=main1VMn8nArtics
+      - N8N_DISABLE_UI=true
+    volumes:
+      - n8n_worker_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ─── LOAD BALANCER ────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: n8n-local-nginx
+    restart: always
+    networks:
+      - n8n-net
+    ports:
+      - "8080:80"             # accede a n8n en http://localhost:8080
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - n8n-main-1
+      - n8n-main-2
