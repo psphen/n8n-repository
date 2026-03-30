@@ -1,0 +1,18 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: n8n-redis
+    restart: always
+    network_mode: host
+    command: >
+      redis-server
+      --bind 0.0.0.0
+      --protected-mode no
+      --save 60 1
+      --loglevel notice
+    volumes:
+      - redis_data:/data
+
+volumes:
+  redis_data:
+    name: n8n_redis_data

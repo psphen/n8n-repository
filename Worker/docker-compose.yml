@@ -1,0 +1,25 @@
+services:
+  n8n-worker:
+    image: n8nio/n8n:2.8.4
+    container_name: n8n-worker
+    restart: always
+    network_mode: host
+    command: worker --concurrency=10
+    environment:
+      - EXECUTIONS_MODE=queue
+      - QUEUE_BULL_REDIS_HOST=10.114.158.75
+      - QUEUE_BULL_REDIS_PORT=6379
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=10.114.158.77
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n_db
+      - DB_POSTGRESDB_USER=n8n_user
+      - DB_POSTGRESDB_PASSWORD=PostgresSQL
+      - N8N_ENCRYPTION_KEY=main1VMn8nArtics
+      - N8N_DISABLE_UI=true
+    volumes:
+      - n8n_worker_data:/home/node/.n8n
+
+volumes:
+  n8n_worker_data:
+    name: n8n_worker_data

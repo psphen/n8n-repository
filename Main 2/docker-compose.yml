@@ -1,0 +1,29 @@
+services:
+  n8n:
+    image: n8nio/n8n:2.8.4
+    container_name: n8n-main2
+    restart: always
+    network_mode: host
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - EXECUTIONS_MODE=queue
+      - QUEUE_BULL_REDIS_HOST=10.114.158.75
+      - QUEUE_BULL_REDIS_PORT=6379
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=10.114.158.77
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n_db
+      - DB_POSTGRESDB_USER=n8n_user
+      - DB_POSTGRESDB_PASSWORD=PostgresSQL
+      - N8N_ENCRYPTION_KEY=main1VMn8nArtics
+      - N8N_SECURE_COOKIE=false
+      - N8N_EDITOR_BASE_URL=http://10.115.25.101
+      - WEBHOOK_URL=http://10.115.25.101
+      - N8N_PUSH_BACKEND=websocket
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+volumes:
+  n8n_data:
+    name: n8n_main2_data

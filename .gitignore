@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment variables
+.env
+.env.*
+*.env
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Docker volumes / data
+data/
+volumes/
+
+# SSH keys / secrets
+*.pem
+*.key
+*.crt
+*.p12
+id_rsa
+id_rsa.pub

@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: n8n-postgres
+    restart: always
+    network_mode: host
+    environment:
+      POSTGRES_DB: n8n_db
+      POSTGRES_USER: n8n_user
+      POSTGRES_PASSWORD: PostgresSQL
+      POSTGRES_HOST_AUTH_METHOD: md5
+      POSTGRES_INITDB_ARGS: "--auth-host=md5 --auth-local=md5"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    command: >
+      postgres
+      -c listen_addresses=*
+      -c hba_file=/etc/postgresql/pg_hba.conf
+
+volumes:
+  postgres_data:
+    name: n8n_postgres_data

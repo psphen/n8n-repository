@@ -1,0 +1,337 @@
+================================================================
+  DOCUMENTACIÓN DE INFRAESTRUCTURA N8N - POSITIVA / ARTICS
+  Contrato N° 0420-2026
+================================================================
+
+ACCESO SSH GENERAL
+------------------
+Usuario:    administrador
+Contraseña: Temporal01#
+Nota:       El usuario puede realizar sudo
+
+================================================================
+1. LOAD BALANCER
+================================================================
+Hostname:   n8n-lb
+IP:         10.115.25.101
+SO:         Ubuntu LTS 24.04
+CPU:        4 vCPU
+RAM:        4 GB
+Disco:      80 GB SSD
+
+Servicio instalado: Nginx
+
+Acceso SSH:
+  ssh administrador@10.115.25.101
+
+Archivo de configuración Nginx:
+  /etc/nginx/sites-available/n8n
+
+Configuración actual:
+  server {
+      listen 80;
+      location / {
+          proxy_pass http://10.114.158.71:5678;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection "upgrade";
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_set_header X-Forwarded-Host $host;
+          proxy_set_header X-Forwarded-Port 80;
+          proxy_read_timeout 300;
+          proxy_connect_timeout 300;
+          proxy_send_timeout 300;
+      }
+  }
+
+Comandos útiles:
+  sudo systemctl status nginx
+  sudo systemctl restart nginx
+  sudo nginx -t
+  sudo tail -20 /var/log/nginx/error.log
+  sudo tail -20 /var/log/nginx/access.log
+
+URL de acceso a n8n:
+  http://10.115.25.101
+
+================================================================
+2. N8N MAIN 1
+================================================================
+Hostname:   n8n-nodo1
+IP:         10.114.158.71
+SO:         Ubuntu LTS 24.04
+CPU:        4 vCPU
+RAM:        8 GB
+Disco:      80 GB SSD
+
+Servicio instalado: n8n v2.8.4
+
+Acceso SSH:
+  ssh administrador@10.114.158.71
+
+Archivo de variables de entorno:
+  /etc/n8n.env
+
+Contenido del archivo /etc/n8n.env:
+  N8N_HOST=0.0.0.0
+  N8N_PORT=5678
+  EXECUTIONS_MODE=queue
+  QUEUE_BULL_REDIS_HOST=10.114.158.75
+  QUEUE_BULL_REDIS_PORT=6379
+  DB_TYPE=postgresdb
+  DB_POSTGRESDB_HOST=10.114.158.77
+  DB_POSTGRESDB_PORT=5432
+  DB_POSTGRESDB_DATABASE=n8n_db
+  DB_POSTGRESDB_USER=n8n_user
+  DB_POSTGRESDB_PASSWORD=PostgresSQL
+  N8N_ENCRYPTION_KEY=main1VMn8nArtics
+  N8N_SECURE_COOKIE=false
+  N8N_EDITOR_BASE_URL=http://10.115.25.101
+  WEBHOOK_URL=http://10.115.25.101
+  N8N_PROXY_HOPS=1
+
+Archivo de servicio:
+  /etc/systemd/system/n8n.service
+
+Contenido del servicio:
+  [Unit]
+  Description=n8n
+  After=network.target
+  [Service]
+  Type=simple
+  EnvironmentFile=/etc/n8n.env
+  Environment="N8N_SECURE_COOKIE=false"
+  ExecStart=/usr/bin/n8n start
+  Restart=always
+  User=root
+  [Install]
+  WantedBy=multi-user.target
+
+Comandos útiles:
+  sudo systemctl status n8n
+  sudo systemctl restart n8n
+  sudo journalctl -u n8n -f
+  sudo journalctl -u n8n -n 30 --no-pager
+
+================================================================
+3. N8N MAIN 2
+================================================================
+Hostname:   n8n-nodo2
+IP:         10.114.158.72
+SO:         Ubuntu LTS 24.04
+CPU:        4 vCPU
+RAM:        8 GB
+Disco:      80 GB SSD
+
+Servicio instalado: n8n v2.8.4
+
+Acceso SSH:
+  ssh administrador@10.114.158.72
+
+Archivo de variables de entorno:
+  /etc/n8n.env
+
+Contenido del archivo /etc/n8n.env:
+  N8N_HOST=0.0.0.0
+  N8N_PORT=5678
+  EXECUTIONS_MODE=queue
+  QUEUE_BULL_REDIS_HOST=10.114.158.75
+  QUEUE_BULL_REDIS_PORT=6379
+  DB_TYPE=postgresdb
+  DB_POSTGRESDB_HOST=10.114.158.77
+  DB_POSTGRESDB_PORT=5432
+  DB_POSTGRESDB_DATABASE=n8n_db
+  DB_POSTGRESDB_USER=n8n_user
+  DB_POSTGRESDB_PASSWORD=PostgresSQL
+  N8N_ENCRYPTION_KEY=main1VMn8nArtics
+  N8N_SECURE_COOKIE=false
+  N8N_EDITOR_BASE_URL=http://10.115.25.101
+  WEBHOOK_URL=http://10.115.25.101
+
+Archivo de servicio:
+  /etc/systemd/system/n8n.service
+
+Contenido del servicio:
+  [Unit]
+  Description=n8n
+  After=network.target
+  [Service]
+  Type=simple
+  EnvironmentFile=/etc/n8n.env
+  Environment="N8N_SECURE_COOKIE=false"
+  ExecStart=/usr/bin/n8n start
+  Restart=always
+  User=root
+  [Install]
+  WantedBy=multi-user.target
+
+Nota: El Main 2 está actualmente en modo backup.
+      Se activa automáticamente si el Main 1 falla.
+
+Comandos útiles:
+  sudo systemctl status n8n
+  sudo systemctl restart n8n
+  sudo journalctl -u n8n -f
+
+================================================================
+4. REDIS
+================================================================
+Hostname:   n8n-redis
+IP:         10.114.158.75
+SO:         Ubuntu LTS 24.04
+CPU:        4 vCPU
+RAM:        6 GB
+Disco:      40 GB SSD
+
+Servicio instalado: Redis Server
+
+Acceso SSH:
+  ssh administrador@10.114.158.75
+
+Archivo de configuración:
+  /etc/redis/redis.conf
+
+Cambios aplicados:
+  bind 0.0.0.0          (permite conexiones externas)
+  protected-mode no     (permite conexiones sin contraseña en red interna)
+
+Puerto:     6379
+
+Comandos útiles:
+  sudo systemctl status redis-server
+  sudo systemctl restart redis-server
+  redis-cli ping              (debe responder PONG)
+  redis-cli info              (información general)
+  redis-cli monitor           (ver jobs en tiempo real)
+
+================================================================
+5. POSTGRESQL
+================================================================
+Hostname:   n8n-postgres
+IP:         10.114.158.77
+SO:         Ubuntu LTS 24.04
+CPU:        6 vCPU
+RAM:        8 GB
+Disco:      200 GB SSD
+
+Servicio instalado: PostgreSQL
+
+Acceso SSH:
+  ssh administrador@10.114.158.77
+
+Base de datos n8n:
+  Nombre:     n8n_db
+  Usuario:    n8n_user
+  Contraseña: PostgresSQL
+  Puerto:     5432
+
+Cambios aplicados en postgresql.conf:
+  listen_addresses = '*'
+
+Cambios aplicados en pg_hba.conf:
+  host  n8n_db  n8n_user  10.114.158.0/24  md5
+
+Comandos útiles:
+  sudo systemctl status postgresql
+  sudo systemctl restart postgresql
+  sudo -u postgres psql         (entrar a consola postgres)
+  ss -tlnp | grep 5432          (verificar puerto activo)
+
+================================================================
+6. N8N WORKER
+================================================================
+Hostname:   n8n-worker
+IP:         10.114.158.76
+SO:         Ubuntu LTS 24.04
+CPU:        8 vCPU
+RAM:        8 GB
+Disco:      120 GB SSD
+
+Servicio instalado: n8n v2.8.4 (modo worker)
+
+Acceso SSH:
+  ssh administrador@10.114.158.76
+
+Archivo de variables de entorno:
+  /etc/n8n.env
+
+Contenido del archivo /etc/n8n.env:
+  EXECUTIONS_MODE=queue
+  QUEUE_BULL_REDIS_HOST=10.114.158.75
+  QUEUE_BULL_REDIS_PORT=6379
+  DB_TYPE=postgresdb
+  DB_POSTGRESDB_HOST=10.114.158.77
+  DB_POSTGRESDB_PORT=5432
+  DB_POSTGRESDB_DATABASE=n8n_db
+  DB_POSTGRESDB_USER=n8n_user
+  DB_POSTGRESDB_PASSWORD=PostgresSQL
+  N8N_ENCRYPTION_KEY=main1VMn8nArtics
+  N8N_DISABLE_UI=true
+
+Archivo de servicio:
+  /etc/systemd/system/n8n.service
+
+Contenido del servicio:
+  [Unit]
+  Description=n8n worker
+  After=network.target
+  [Service]
+  Type=simple
+  EnvironmentFile=/etc/n8n.env
+  ExecStart=/usr/bin/n8n worker
+  Restart=always
+  User=root
+  [Install]
+  WantedBy=multi-user.target
+
+Características:
+  Concurrencia: 10 flujos simultáneos
+  No tiene interfaz web (solo ejecuta flujos)
+
+Comandos útiles:
+  sudo systemctl status n8n
+  sudo systemctl restart n8n
+  sudo journalctl -u n8n -f
+
+================================================================
+7. MICROSERVICES VM (referencia)
+================================================================
+Hostname:   n8n-micro
+IP:         10.114.158.86
+SO:         Ubuntu LTS 24.04
+CPU:        12 vCPU
+RAM:        24 GB
+Disco:      500 GB SSD
+
+Servicios: Nginx, API Gateway, .NET services, Keycloak, Elasticsearch
+Nota: Configuración a cargo del equipo de Camila
+
+================================================================
+RESUMEN DE IPs
+================================================================
+Load Balancer:    10.115.25.101   (acceso público UI)
+n8n Main 1:       10.114.158.71   (puerto 5678)
+n8n Main 2:       10.114.158.72   (puerto 5678)
+Redis:            10.114.158.75   (puerto 6379)
+n8n Worker:       10.114.158.76
+PostgreSQL:       10.114.158.77   (puerto 5432)
+Microservices:    10.114.158.86
+
+================================================================
+ENCRYPTION KEY (IMPORTANTE - NO COMPARTIR)
+================================================================
+N8N_ENCRYPTION_KEY=main1VMn8nArtics
+
+NOTA: Esta clave debe ser IGUAL en Main 1, Main 2 y Worker.
+Si se cambia, todas las credenciales guardadas en n8n
+dejarán de funcionar.
+
+================================================================
+URL DE ACCESO A N8N
+================================================================
+http://10.115.25.101
+
+================================================================
