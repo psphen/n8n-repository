@@ -18,7 +18,7 @@ services:
 
   # ─── BASE DE DATOS ────────────────────────────────────────────
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.6-alpine
     container_name: n8n-local-postgres
     restart: always
     networks:
@@ -39,7 +39,7 @@ services:
 
   # ─── COLA DE MENSAJES ─────────────────────────────────────────
   redis:
-    image: redis:7-alpine
+    image: redis:7.2-alpine
     container_name: n8n-local-redis
     restart: always
     networks:
