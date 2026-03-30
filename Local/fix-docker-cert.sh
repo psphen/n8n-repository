@@ -11,58 +11,56 @@
 set -e
 
 echo "=== PASO 1: Extrayendo cadena completa de certificados del proxy ==="
-# -showcerts extrae TODOS los certs de la cadena (leaf + intermedios + raíz CA)
 echo | openssl s_client -connect registry-1.docker.io:443 -showcerts 2>/dev/null \
   > /tmp/full-chain.pem
-echo "Cadena obtenida. Certificados encontrados:"
-grep -c "BEGIN CERTIFICATE" /tmp/full-chain.pem || true
+
+COUNT=$(grep -c "BEGIN CERTIFICATE" /tmp/full-chain.pem 2>/dev/null || echo "0")
+echo "Certificados encontrados en la cadena: $COUNT"
 
 echo ""
-echo "=== PASO 2: Extrayendo TODOS los certs de la cadena por separado ==="
-# Dividir la cadena en certs individuales y guardar cada uno
-awk '/-----BEGIN CERTIFICATE-----/{i++} {print > "/tmp/cert-" i ".pem"}' /tmp/full-chain.pem
+echo "=== PASO 2: Separando y guardando cada certificado ==="
+# Separar cada cert individualmente
+awk '
+  /-----BEGIN CERTIFICATE-----/ { n++; f="/tmp/proxy-cert-" n ".pem" }
+  f { print > f }
+  /-----END CERTIFICATE-----/ { close(f); f="" }
+' /tmp/full-chain.pem
 
-# Mostrar el subject de cada cert para identificar cuál es la CA
-for f in /tmp/cert-*.pem; do
-  echo "--- $f ---"
-  openssl x509 -in "$f" -noout -subject -issuer 2>/dev/null || true
+# Mostrar info de cada cert encontrado
+for f in /tmp/proxy-cert-*.pem; do
+  [ -f "$f" ] || continue
+  SUBJ=$(openssl x509 -in "$f" -noout -subject 2>/dev/null | sed 's/subject=//')
+  ISSU=$(openssl x509 -in "$f" -noout -issuer  2>/dev/null | sed 's/issuer=//')
+  echo "  Cert: $SUBJ"
+  echo "  Firmado por: $ISSU"
+  echo ""
 done
 
-echo ""
-echo "=== PASO 3: Guardando TODOS los certs de la cadena como CAs confiables ==="
-# Concatenar todos los certs de la cadena en un solo archivo CA
-cat /tmp/cert-*.pem | sudo tee /usr/local/share/ca-certificates/proxy-ca-chain.crt > /dev/null
-echo "✅ Cadena completa guardada en /usr/local/share/ca-certificates/proxy-ca-chain.crt"
-
-echo ""
-echo "=== PASO 4: Agregando certificados al sistema operativo ==="
+echo "=== PASO 3: Agregando TODOS los certs de la cadena al sistema ==="
+sudo cp /tmp/proxy-cert-*.pem /usr/local/share/ca-certificates/ 2>/dev/null || true
+# Renombrar a .crt que es lo que acepta update-ca-certificates
+for f in /usr/local/share/ca-certificates/proxy-cert-*.pem; do
+  [ -f "$f" ] && sudo mv "$f" "${f%.pem}.crt" 2>/dev/null || true
+done
 sudo update-ca-certificates
 echo "✅ Certificados del sistema actualizados"
 
 echo ""
-echo "=== PASO 5: Configurando Docker para confiar en el proxy ==="
-# Crear directorio de certs para Docker Hub
+echo "=== PASO 4: Agregando certs directamente a Docker por registro ==="
 sudo mkdir -p /etc/docker/certs.d/registry-1.docker.io
+cat /tmp/proxy-cert-*.pem 2>/dev/null | sudo tee /etc/docker/certs.d/registry-1.docker.io/ca.crt > /dev/null
+echo "✅ Certs agregados a Docker"
 
-# Copiar la cadena completa a Docker
-sudo cp /usr/local/share/ca-certificates/proxy-ca-chain.crt \
-        /etc/docker/certs.d/registry-1.docker.io/ca.crt
-
-# También configurar Docker daemon para usar los certs del sistema
-if [ ! -f /etc/docker/daemon.json ]; then
-  echo '{}' | sudo tee /etc/docker/daemon.json > /dev/null
-fi
-
-# Agregar opción para que Docker confíe en los certs del sistema
-sudo python3 -c "
-import json, sys
-with open('/etc/docker/daemon.json') as f:
-    d = json.load(f)
-# insecure-registries no es lo que queremos, solo aseguramos que use los certs del sistema
-print(json.dumps(d, indent=2))
-" 2>/dev/null || true
-
-echo "✅ Docker configurado"
+echo ""
+echo "=== PASO 5: Configurando Docker para aceptar cert del WAF ==="
+# insecure-registries: Docker sigue usando HTTPS pero acepta
+# certificados firmados por CAs desconocidas (el WAF corporativo)
+sudo bash -c 'cat > /etc/docker/daemon.json << '"'"'EOF'"'"'
+{
+  "insecure-registries": ["registry-1.docker.io"]
+}
+EOF'
+echo "✅ daemon.json configurado"
 
 echo ""
 echo "=== PASO 6: Reiniciando Docker ==="
@@ -75,22 +73,21 @@ echo "=== PASO 7: Verificando conexión a Docker Hub ==="
 if docker pull hello-world:latest --quiet 2>/dev/null; then
   echo "✅ Docker Hub accesible — problema resuelto"
   docker rmi hello-world:latest 2>/dev/null || true
+  echo ""
+  echo "Ahora puedes levantar n8n con:"
+  echo "   docker compose up -d"
 else
-  echo "❌ Aún hay problemas. Intentando diagnóstico adicional..."
+  echo "❌ Aún hay problemas. Diagnóstico:"
   echo ""
-  echo "Certificado que presenta el proxy AHORA para registry-1.docker.io:"
+  echo "Cert que presenta el WAF en este momento:"
   echo | openssl s_client -connect registry-1.docker.io:443 2>/dev/null \
-    | openssl x509 -noout -subject -issuer -dates 2>/dev/null
+    | openssl x509 -noout -subject -issuer 2>/dev/null
   echo ""
-  echo "Solución alternativa: agregar como insecure-registry (sin SSL)"
-  echo "Ejecuta esto y vuelve a intentar:"
-  echo ""
-  echo "  sudo bash -c 'echo \"{\\\"insecure-registries\\\": [\\\"registry-1.docker.io\\\"]}\" > /etc/docker/daemon.json'"
-  echo "  sudo systemctl restart docker"
-  echo "  docker compose up -d"
+  echo "Prueba manual — ejecuta esto y comparte el resultado:"
+  echo "   curl -vk https://registry-1.docker.io/v2/ 2>&1 | head -40"
 fi
 
 echo ""
-echo "=== Limpiando archivos temporales ==="
-rm -f /tmp/full-chain.pem /tmp/cert-*.pem
-echo "✅ Listo"
+echo "=== Limpiando temporales ==="
+rm -f /tmp/full-chain.pem /tmp/proxy-cert-*.pem
+echo "Listo."
