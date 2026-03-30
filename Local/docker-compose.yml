@@ -57,7 +57,7 @@ services:
 
   # ─── N8N MAIN 1 ───────────────────────────────────────────────
   n8n-main-1:
-    image: n8nio/n8n:latest
+    image: docker.n8n.io/n8nio/n8n:latest
     container_name: n8n-local-main1
     restart: always
     networks:
@@ -90,7 +90,7 @@ services:
 
   # ─── N8N MAIN 2 ───────────────────────────────────────────────
   n8n-main-2:
-    image: n8nio/n8n:latest
+    image: docker.n8n.io/n8nio/n8n:latest
     container_name: n8n-local-main2
     restart: always
     networks:
@@ -123,7 +123,7 @@ services:
 
   # ─── WORKERS ──────────────────────────────────────────────────
   n8n-worker-1:
-    image: n8nio/n8n:latest
+    image: docker.n8n.io/n8nio/n8n:latest
     container_name: n8n-local-worker-1
     restart: always
     networks:
@@ -150,7 +150,7 @@ services:
         condition: service_healthy
 
   n8n-worker-2:
-    image: n8nio/n8n:latest
+    image: docker.n8n.io/n8nio/n8n:latest
     container_name: n8n-local-worker-2
     restart: always
     networks:
@@ -177,7 +177,7 @@ services:
         condition: service_healthy
 
   n8n-worker-3:
-    image: n8nio/n8n:latest
+    image: docker.n8n.io/n8nio/n8n:latest
     container_name: n8n-local-worker-3
     restart: always
     networks:
