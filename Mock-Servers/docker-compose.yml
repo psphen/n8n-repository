@@ -1,0 +1,133 @@
+version: '3.8'
+
+networks:
+  positiva-mock:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+services:
+  # ─── SERVIDOR 1: WEB PRINCIPAL ────────────────────────────────
+  posmvdc1:
+    image: nginx:alpine
+    container_name: posmvdc1.positiva.col
+    hostname: posmvdc1.positiva.col
+    restart: always
+    networks:
+      positiva-mock:
+        ipv4_address: 172.20.0.11
+    ports:
+      - "8081:80"
+    volumes:
+      - ./web-content:/usr/share/nginx/html:ro
+
+  # ─── SERVIDOR 2: BASE DE DATOS ────────────────────────────────
+  positivadb05:
+    image: postgres:16-alpine
+    container_name: positivadb05.positiva.col
+    hostname: positivadb05.positiva.col
+    restart: always
+    networks:
+      positiva-mock:
+        ipv4_address: 172.20.0.12
+    environment:
+      - POSTGRES_PASSWORD=mockpass123
+      - POSTGRES_DB=testdb
+
+  # ─── SERVIDOR 3: APLICACIÓN JBOSS ─────────────────────────────
+  jboss1:
+    image: alpine:latest
+    container_name: jboss1.positiva.col
+    hostname: jboss1.positiva.col
+    restart: always
+    networks:
+      positiva-mock:
+        ipv4_address: 172.20.0.13
+    command: sh -c "apk add --no-cache openssh && while true; do sleep 3600; done"
+
+  # ─── SERVIDOR 4: REDIS CACHE ───────────────────────────────────
+  posredis:
+    image: redis:7.2-alpine
+    container_name: posredis.positiva.col
+    hostname: posredis.positiva.col
+    restart: always
+    networks:
+      positiva-mock:
+        ipv4_address: 172.20.0.14
+
+  # ─── SERVIDOR 5: BACKUP SERVER ────────────────────────────────
+  posmvbackups:
+    image: ubuntu:22.04
+    container_name: posmvbackups.positiva.col
+    hostname: posmvbackups.positiva.col
+    restart: always
+    networks:
+      positiva-mock:
+        ipv4_address: 172.20.0.15
+    command: bash -c "apt-get update && apt-get install -y openssh-server && service ssh start && tail -f /dev/null"
+
+  # ─── SERVIDOR 6: SAP ALT ───────────────────────────────────────
+  sapalt:
+    image: alpine:latest
+    container_name: sapalt.positiva.col
+    hostname: sapalt.positiva.col
+    restart: always
+    networks:
+      positiva-mock:
+        ipv4_address: 172.20.0.16
+    command: sh -c "while true; do sleep 3600; done"
+
+  # ─── SERVIDOR 7: WEBLOGIC 1 ────────────────────────────────────
+  weblogic1:
+    image: nginx:alpine
+    container_name: weblogic1.positiva.col
+    hostname: weblogic1.positiva.col
+    restart: always
+    networks:
+      positiva-mock:
+        ipv4_address: 172.20.0.17
+    ports:
+      - "8082:80"
+
+  # ─── SERVIDOR 8: FILESERVER ────────────────────────────────────
+  posfileserver:
+    image: alpine:latest
+    container_name: posfileserver.positiva.col
+    hostname: posfileserver.positiva.col
+    restart: always
+    networks:
+      positiva-mock:
+        ipv4_address: 172.20.0.18
+    volumes:
+      - mock-files:/data
+    command: sh -c "apk add --no-cache samba && while true; do sleep 3600; done"
+
+  # ─── SERVIDOR 9: OPENSHIFT WORKER ─────────────────────────────
+  os-worker1:
+    image: alpine:latest
+    container_name: os-worker1.positiva.col
+    hostname: os-worker1.openshift4.positiva.gov.co
+    restart: always
+    networks:
+      positiva-mock:
+        ipv4_address: 172.20.0.19
+    command: sh -c "while true; do sleep 3600; done"
+
+  # ─── SERVIDOR 10: ARANDA SERVICE DESK ──────────────────────────
+  aranda:
+    image: nginx:alpine
+    container_name: aranda.positiva.col
+    hostname: aranda.positiva.gov.co
+    restart: always
+    networks:
+      positiva-mock:
+        ipv4_address: 172.20.0.20
+    ports:
+      - "8083:80"
+    volumes:
+      - ./aranda-web:/usr/share/nginx/html:ro
+
+volumes:
+  mock-files:
+    name: positiva_mock_files
