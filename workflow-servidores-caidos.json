@@ -1,0 +1,341 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "id": "3f8dd0fd-b328-4008-ae43-0057cd2fde39",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -608,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://10.114.158.9:17774/SolarWinds/InformationService/v3/Json/Query",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "SELECT NodeID, Caption, IP_Address, DNS, StatusDescription, Location, LastBoot, DetailsUrl FROM Orion.Nodes WHERE Status=2"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "id": "e8c6c225-d25d-44ee-8069-38e577dbe059",
+      "name": "Consultar SolarWinds",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -400,
+        16
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "v8dItAliekmR0Rl1",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+              "leftValue": "={{ $json.results.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4dc60c3c-7de3-4a41-a6f3-ab10e7fb4b5f",
+      "name": "Hay Servidores Caídos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -176,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b1c2d3e4-f5a6-7890-bcde-f12345678901",
+              "name": "total_caidos",
+              "value": "={{ $json.results.length }}",
+              "type": "number"
+            },
+            {
+              "id": "c2d3e4f5-a6b7-8901-cdef-123456789012",
+              "name": "servidores",
+              "value": "={{ $json.results }}",
+              "type": "array"
+            },
+            {
+              "id": "d3e4f5a6-b7c8-9012-def1-234567890123",
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c491abc5-7534-451b-978e-0a076f8de5d5",
+      "name": "Preparar Datos",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        48,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "servidores",
+        "options": {}
+      },
+      "id": "1cd5ee12-a362-4784-8836-ae3c93e79904",
+      "name": "Split Servidores",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        272,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a6b7c8d9-e0f1-2345-6789-abcdef012345",
+              "name": "servidor",
+              "value": "={{ $json.Caption }}",
+              "type": "string"
+            },
+            {
+              "id": "b7c8d9e0-f1a2-3456-789a-bcdef0123456",
+              "name": "ip",
+              "value": "={{ $json.IP_Address }}",
+              "type": "string"
+            },
+            {
+              "id": "c8d9e0f1-a2b3-4567-89ab-cdef01234567",
+              "name": "dns",
+              "value": "={{ $json.DNS }}",
+              "type": "string"
+            },
+            {
+              "id": "d9e0f1a2-b3c4-5678-9abc-def012345678",
+              "name": "estado",
+              "value": "🔴 CAÍDO",
+              "type": "string"
+            },
+            {
+              "id": "e0f1a2b3-c4d5-6789-abcd-ef0123456789",
+              "name": "detalle",
+              "value": "={{ $json.StatusDescription || 'Sin descripción' }}",
+              "type": "string"
+            },
+            {
+              "id": "f1a2b3c4-d5e6-789a-bcde-f01234567890",
+              "name": "ubicacion",
+              "value": "={{ $json.Location || 'Sin ubicación' }}",
+              "type": "string"
+            },
+            {
+              "id": "a2b3c4d5-e6f7-89ab-cdef-012345678901",
+              "name": "url_solarwinds",
+              "value": "https://10.114.158.9{{ $json.DetailsUrl }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dfea270c-4b6b-4163-8549-47d07a669cfa",
+      "name": "Formatear Alerta",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        496,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "=🚨 *SERVIDOR CAÍDO DETECTADO*\n\n*Servidor:* {{ $json.servidor }}\n*IP:* {{ $json.ip }}\n*DNS:* {{ $json.dns }}\n*Estado:* {{ $json.estado }}\n*Detalle:* {{ $json.detalle }}\n*Ubicación:* {{ $json.ubicacion }}\n*Timestamp:* {{ $now.toISO() }}\n\n<{{ $json.url_solarwinds }}|🔗 Ver en SolarWinds>"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "165841e2-04e9-422f-a5f9-5a7b480d2c69",
+      "name": "Enviar a Slack/Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        -96
+      ],
+      "notes": "Cambia la URL por tu webhook de Slack, Teams, Discord, etc."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO solarwinds_alertas (servidor, ip, dns, estado, detalle, ubicacion, url_solarwinds)\nVALUES (\n  '{{ $json.servidor }}',\n  '{{ $json.ip }}',\n  '{{ $json.dns }}',\n  'DOWN',\n  '{{ $json.detalle }}',\n  '{{ $json.ubicacion }}',\n  '{{ $json.url_solarwinds }}'\n);",
+        "options": {}
+      },
+      "id": "8f7fa984-36f5-4736-ae57-ff45bd876e39",
+      "name": "Guardar en PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        96
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "dsKImndy1nUh3zdU",
+          "name": "Postgres account"
+        }
+      },
+      "notes": "Guarda histórico de servidores caídos"
+    },
+    {
+      "parameters": {},
+      "id": "57657217-bdf9-4d65-b479-becfcfecf654",
+      "name": "No Actuar",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        48,
+        112
+      ],
+      "notes": "No hay servidores caídos"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Consultar SolarWinds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar SolarWinds": {
+      "main": [
+        [
+          {
+            "node": "Hay Servidores Caídos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hay Servidores Caídos?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Datos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Actuar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Datos": {
+      "main": [
+        [
+          {
+            "node": "Split Servidores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Servidores": {
+      "main": [
+        [
+          {
+            "node": "Formatear Alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Alerta": {
+      "main": [
+        [
+          {
+            "node": "Enviar a Slack/Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Guardar en PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f1ccceeecac33f035253dbcc4c4d60daeb18676f01d6d4c0c1f3b35b0eb96d7c"
+  }
+}

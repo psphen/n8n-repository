@@ -1,0 +1,84 @@
+================================================================
+RESUMEN: REGISTRO DE SERVIDORES MOCK EN SOLARWINDS
+================================================================
+
+📋 SITUACIÓN ACTUAL:
+--------------------
+✅ SolarWinds está funcionando: https://192.168.10.154
+✅ Credenciales validadas: Admin / @Admin123!
+✅ API de consultas (GET) funciona perfectamente
+❌ API de creación (POST) está deshabilitada o bloqueada
+
+🔍 DIAGNÓSTICO:
+----------------
+Intenté registrar los 4 servidores mock via API automática pero
+el endpoint POST devuelve errores 404 y 400 "Invalid Verb".
+
+Esto es NORMAL en instalaciones de SolarWinds con permisos
+restringidos por seguridad.
+
+📝 SOLUCIÓN: REGISTRO MANUAL
+-----------------------------
+Los 4 servidores mock deben agregarse manualmente via la
+interfaz web de SolarWinds.
+
+Instrucciones detalladas en:
+  Local/mock-servidores/INSTRUCCIONES-REGISTRO-MANUAL.txt
+
+Resumen rápido:
+1. Ir a https://192.168.10.154/Orion/
+2. Login: Admin / @Admin123!
+3. Settings → Manage Nodes → Add Node
+4. Método: ICMP Only
+5. Agregar estos 4:
+   - BOGOTA_CASA_MATRIZ_PPAL_MOCK (172.30.0.10)
+   - BOGOTA_CASA_MATRIZ_BKP_MOCK (172.30.0.11)
+   - DVR_TUNJA_MOCK (172.30.0.20) 
+   - CALI_LIMONAR_PPAL_MOCK (172.30.0.21)
+
+🐳 ANTES DE REGISTRAR EN SOLARWINDS:
+-------------------------------------
+Levanta los contenedores Docker primero:
+
+  cd Local/mock-servidores
+  docker compose up -d
+
+Esto crea las 4 VMs mock que SolarWinds monitoreará.
+
+🔗 INTEGRACIÓN CON N8N:
+-----------------------
+Una vez que agregues los nodos en SolarWinds manualmente,
+el workflow de n8n los detectará automáticamente cada 5 minutos.
+
+El workflow consulta:
+  https://192.168.10.154:17774/.../?query=SELECT+...+WHERE+Status=2
+
+Y creará tickets para servidores DOWN (como DVR_TUNJA_MOCK).
+
+✅ VERIFICACIÓN:
+----------------
+Después de agregar en SolarWinds, ejecuta:
+
+curl -k -u "Admin:@Admin123!" \
+"https://192.168.10.154:17774/SolarWinds/InformationService/v3/Json/Query?query=SELECT+Caption,+IP_Address,+Status+FROM+Orion.Nodes+WHERE+Caption+LIKE+'%MOCK%'"
+
+Deberías ver los 4 nodos registrados.
+
+================================================================
+ARCHIVOS CREADOS:
+================================================================
+✅ Local/mock-servidores/docker-compose.yml
+✅ Local/mock-servidores/registrar-mocks-solarwinds.js (intentó automatizar)
+✅ Local/mock-servidores/INSTRUCCIONES-REGISTRO-MANUAL.txt (solución)
+✅ Local/mock-servidores/web-*/index.html (páginas de cada servidor)
+
+================================================================
+PRÓXIMOS PASOS:
+================================================================
+1. Levantar contenedores: cd Local/mock-servidores && docker compose up -d
+2. Agregar nodos en SolarWinds WEB manualmente (5 minutos)
+3. Verificar con curl que aparezcan en la API
+4. El workflow n8n los detectará automáticamente
+
+¿Necesitas ayuda con algún paso específico?
+================================================================

@@ -1,0 +1,83 @@
+version: '3.8'
+
+networks:
+  mock-positiva:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16
+
+services:
+  # ════════════════════════════════════════════════════════════
+  # SERVIDORES ACTIVOS (UP) - Responden correctamente
+  # ════════════════════════════════════════════════════════════
+  
+  # SERVIDOR 1: BOGOTA_CASA_MATRIZ_PPAL (UP)
+  bogota-matriz-ppal:
+    image: nginx:alpine
+    container_name: bogota-matriz-ppal
+    hostname: BOGOTA_CASA_MATRIZ_PPAL
+    restart: always
+    networks:
+      mock-positiva:
+        ipv4_address: 172.30.0.10
+    ports:
+      - "9001:80"
+    volumes:
+      - ./web-bogota-ppal:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # SERVIDOR 2: BOGOTA_CASA_MATRIZ_BKP (UP)
+  bogota-matriz-bkp:
+    image: nginx:alpine
+    container_name: bogota-matriz-bkp
+    hostname: BOGOTA_CASA_MATRIZ_BKP
+    restart: always
+    networks:
+      mock-positiva:
+        ipv4_address: 172.30.0.11
+    ports:
+      - "9002:80"
+    volumes:
+      - ./web-bogota-bkp:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ════════════════════════════════════════════════════════════
+  # SERVIDORES CAÍDOS (DOWN) - No responden
+  # ════════════════════════════════════════════════════════════
+  
+  # SERVIDOR 3: DVR Tunja (DOWN - contenedor se muere inmediatamente)
+  dvr-tunja:
+    image: alpine:latest
+    container_name: dvr-tunja
+    hostname: DVR_TUNJA
+    networks:
+      mock-positiva:
+        ipv4_address: 172.30.0.20
+    # El contenedor sale inmediatamente simulando servidor caído
+    command: sh -c "echo 'DVR Tunja - Simulando servidor caído' && exit 1"
+    restart: "no"  # No reinicia, queda permanentemente DOWN
+
+  # SERVIDOR 4: CALI_LIMONAR_PPAL (DOWN - responde pero con error HTTP 503)
+  cali-limonar:
+    image: nginx:alpine
+    container_name: cali-limonar
+    hostname: CALI_LIMONAR_PPAL
+    networks:
+      mock-positiva:
+        ipv4_address: 172.30.0.21
+    ports:
+      - "9003:80"
+    volumes:
+      - ./web-cali-error:/usr/share/nginx/html:ro
+      - ./nginx-error.conf:/etc/nginx/conf.d/default.conf:ro
+    # Responde pero siempre con error 503
+    restart: always

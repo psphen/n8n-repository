@@ -1,0 +1,204 @@
+═══════════════════════════════════════════════════════════════════════════════
+  CONSULTA DE ALERTAS DE SOLARWINDS SIN RECIBIR NOTIFICACIONES AUTOMÁTICAS
+═══════════════════════════════════════════════════════════════════════════════
+
+RESPUESTA: SÍ, PUEDES CONSULTAR LAS ALERTAS MEDIANTE LA API
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ SITUACIÓN ACTUAL                                                          ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+SolarWinds NO envía alertas automáticas a n8n (via email, webhook, etc.)
+    ↓
+Pero TÚ puedes CONSULTAR (polling) las alertas activas cada X minutos
+    ↓
+n8n hace petición HTTP a la API → obtiene alertas → procesa → crea tickets
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ ENDPOINT PARA CONSULTAR ALERTAS                                          ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+URL:
+https://10.114.158.9:17774/SolarWinds/InformationService/v3/Json/Query
+
+QUERY (todas las alertas activas no reconocidas):
+SELECT 
+    AlertObjectID,
+    AlertName,
+    Message,
+    ObjectName,
+    EntityCaption,
+    Acknowledged,
+    TriggerTimeStamp,
+    EntityDetailsUrl
+FROM Orion.AlertActive
+WHERE Acknowledged = False
+ORDER BY TriggerTimeStamp DESC
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ CÓMO FUNCIONA EL POLLING                                                 ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+1. n8n Schedule Trigger → cada 5 minutos
+   ↓
+2. HTTP Request → API SolarWinds (consulta alertas activas)
+   ↓
+3. n8n recibe JSON con alertas nuevas
+   ↓
+4. Por cada alerta:
+   - Verifica si ya la procesó (guarda AlertObjectID en PostgreSQL)
+   - Si es NUEVA → crea ticket en Aranda
+   - Marca como procesada
+   ↓
+5. Espera 5 minutos → repite
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ VENTAJAS DEL POLLING                                                     ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+✅ No necesitas configurar webhooks en SolarWinds
+✅ No necesitas abrir puertos de entrada
+✅ Tienes control total del intervalo (cada 1, 5, 10 min)
+✅ Puedes filtrar qué alertas procesar
+✅ Evitas duplicados (guardas ID en base de datos)
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ DESVENTAJAS                                                              ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+⚠️ No es en tiempo real (delay de X minutos)
+⚠️ Consume más recursos (hace petición aunque no haya alertas)
+⚠️ Necesitas VPN activa para que n8n llegue a la API
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ EJEMPLO DE CONSULTA CURL                                                ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+curl -k -u 'POSITIVA\administradorcmdb:7k6`3-z/a1nX.KQ[' \
+  "https://10.114.158.9:17774/SolarWinds/InformationService/v3/Json/Query?query=SELECT+AlertObjectID,+AlertName,+Message,+ObjectName,+EntityCaption,+Acknowledged,+TriggerTimeStamp+FROM+Orion.AlertActive+WHERE+Acknowledged=False+ORDER+BY+TriggerTimeStamp+DESC"
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ TIPOS DE ALERTAS QUE PUEDES CONSULTAR                                   ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+1. Orion.AlertActive         → Alertas activas ahora
+2. Orion.AlertHistory        → Historial de alertas
+3. Orion.AlertObjects        → Objetos con alertas configuradas
+4. Orion.AlertStatus         → Estado de cada alerta
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ QUERIES ÚTILES ADICIONALES                                              ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+▸ Alertas críticas (severity >= 2):
+  WHERE Severity >= 2 AND Acknowledged = False
+
+▸ Alertas de las últimas 24 horas:
+  WHERE TriggerTimeStamp > GETDATE()-1
+
+▸ Solo alertas de nodos específicos:
+  WHERE EntityCaption IN ('BLADEDELL6', 'POSITIVADB05')
+
+▸ Contar alertas activas por tipo:
+  SELECT AlertName, COUNT(*) AS Total 
+  FROM Orion.AlertActive 
+  GROUP BY AlertName
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ WORKFLOW N8N RECOMENDADO                                                ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────┐
+│ Schedule Trigger        │
+│ (cada 5 minutos)        │
+└───────────┬─────────────┘
+            │
+┌───────────▼─────────────┐
+│ HTTP Request            │
+│ GET SolarWinds Alertas  │
+└───────────┬─────────────┘
+            │
+┌───────────▼─────────────┐
+│ IF tiene resultados     │
+└─────┬─────────────┬─────┘
+      │ Sí          │ No → End
+      │             │
+┌─────▼─────────────┐
+│ Split In Batches  │
+│ (procesar de 10)  │
+└─────┬─────────────┘
+      │
+┌─────▼─────────────┐
+│ Postgres: Buscar  │
+│ si AlertID existe │
+└─────┬─────────────┘
+      │
+┌─────▼─────────────┐
+│ IF es nueva       │
+└─────┬─────────────┘
+      │
+┌─────▼─────────────┐
+│ HTTP Post Aranda  │
+│ (crear ticket)    │
+└─────┬─────────────┘
+      │
+┌─────▼─────────────┐
+│ Postgres: Guardar │
+│ AlertID + TicketID│
+└───────────────────┘
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ TABLA POSTGRESQL PARA EVITAR DUPLICADOS                                 ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+CREATE TABLE solarwinds_alertas_procesadas (
+    id SERIAL PRIMARY KEY,
+    alert_object_id BIGINT UNIQUE NOT NULL,
+    alert_name VARCHAR(255),
+    entity_caption VARCHAR(255),
+    trigger_timestamp TIMESTAMP,
+    ticket_aranda_id VARCHAR(100),
+    processed_at TIMESTAMP DEFAULT NOW()
+);
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ FRECUENCIA RECOMENDADA                                                  ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+▸ Alertas críticas (nodos caídos):    cada 2-5 minutos
+▸ Alertas warning (CPU alta, disco):  cada 10-15 minutos
+▸ Alertas informativas:               cada 30-60 minutos
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ RESUMEN                                                                  ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+Pregunta: "¿Podemos consultar alertas aunque no las recibamos automáticamente?"
+
+Respuesta: SÍ
+
+Método: Polling (n8n consulta la API cada X minutos)
+
+Ventaja: No requiere configuración en SolarWinds
+
+Desventaja: Delay entre alerta real y ticket (5-15 min)
+
+Solución perfecta para: Entornos donde no puedes modificar SolarWinds o 
+                        no tienes acceso a configurar webhooks salientes
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  FIN DEL DOCUMENTO
+═══════════════════════════════════════════════════════════════════════════════

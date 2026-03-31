@@ -1,0 +1,192 @@
+=================================================================
+RESUMEN: 4 SERVIDORES MOCK LISTOS PARA N8N LOCAL
+=================================================================
+
+✅ ARCHIVOS CREADOS EN: Local/mock-servidores/
+=================================================================
+
+📁 Local/mock-servidores/
+ ├── docker-compose.yml                 (Configuración de 4 servidores)
+ ├── nginx-error.conf                   (Config para simular error 503)
+ ├── README.txt                         (Documentación completa)
+ ├── COMANDOS-INTEGRACION.txt           (Pasos para conectar con n8n)
+ │
+ ├── 📂 web-bogota-ppal/
+ │   └── index.html                     (Servidor UP #1)
+ │
+ ├── 📂 web-bogota-bkp/
+ │   └── index.html                     (Servidor UP #2)
+ │
+ └── 📂 web-cali-error/
+     └── index.html                     (Servidor DOWN con 503)
+
+=================================================================
+🎯 SERVIDORES CREADOS (Basados en datos reales de SolarWinds)
+=================================================================
+
+🟢 SERVIDORES ACTIVOS (UP):
+
+1. BOGOTA_CASA_MATRIZ_PPAL
+   ├─ IP:           172.30.0.10
+   ├─ Puerto:       9001
+   ├─ NodeID:       3 (SolarWinds)
+   ├─ Dato real:    192.168.1.2
+   ├─ Tipo:         Cisco C8200-1N-4T Chassis
+   └─ URL:          http://localhost:9001
+
+2. BOGOTA_CASA_MATRIZ_BKP
+   ├─ IP:           172.30.0.11
+   ├─ Puerto:       9002
+   ├─ NodeID:       1 (SolarWinds)
+   ├─ Dato real:    192.168.1.3
+   ├─ Tipo:         Cisco C8200-1N-4T Chassis
+   └─ URL:          http://localhost:9002
+
+🔴 SERVIDORES CAÍDOS (DOWN):
+
+3. DVR_TUNJA
+   ├─ IP:           172.30.0.20
+   ├─ NodeID:       338 (SolarWinds)
+   ├─ Dato real:    10.0.120.5
+   ├─ Tipo:         Unknown
+   ├─ Simulación:   Contenedor exit 1 (no arranca)
+   └─ Ping:         NO RESPONDE ❌
+
+4. CALI_LIMONAR_PPAL
+   ├─ IP:           172.30.0.21
+   ├─ Puerto:       9003
+   ├─ NodeID:       597 (SolarWinds)
+   ├─ Dato real:    10.0.30.4
+   ├─ Tipo:         Cisco C1111
+   ├─ Simulación:   HTTP 503 Service Unavailable
+   └─ URL:          http://localhost:9003 (ERROR)
+
+=================================================================
+🚀 COMANDOS RÁPIDOS PARA LEVANTAR TODO
+=================================================================
+
+EN WINDOWS (donde tienes el repo):
+----------------------------------
+cd c:\Users\Dell\Documents\n8n-positiva\Local\mock-servidores
+docker compose up -d
+
+# Conectar con n8n
+docker network connect mock-positiva n8n-local-main1
+docker network connect mock-positiva n8n-local-main2
+docker network connect mock-positiva n8n-local-worker-1
+
+# Probar
+curl http://localhost:9001
+curl http://localhost:9002
+curl http://localhost:9003  # Da error 503
+
+
+EN LINUX (servidor dev@dev):
+-----------------------------
+cd ~/n8n-repository/Local/mock-servidores
+git pull  # Traer los archivos nuevos
+docker compose up -d
+
+# Conectar con n8n local
+docker network connect mock-positiva n8n-local-main1
+docker network connect mock-positiva n8n-local-worker-1
+
+# Probar desde n8n
+docker exec n8n-local-main1 ping -c 2 172.30.0.10
+
+=================================================================
+📊 VERIFICACIÓN RÁPIDA
+=================================================================
+
+# Ver estado de contenedores
+docker compose ps
+
+RESULTADO ESPERADO:
+  bogota-matriz-ppal  →  Up (healthy)  ✅
+  bogota-matriz-bkp   →  Up (healthy)  ✅
+  dvr-tunja           →  Exited (1)    ❌
+  cali-limonar        →  Up            ⚠️ (responde 503)
+
+# Probar conectividad HTTP
+curl -I http://localhost:9001  →  200 OK
+curl -I http://localhost:9002  →  200 OK
+curl -I http://localhost:9003  →  503 Service Unavailable
+
+=================================================================
+🔧 INTEGRACIÓN CON N8N LOCAL
+=================================================================
+
+DESDE N8N (http://localhost:8080):
+
+1. Crea workflow "Monitor Mock Servers"
+2. Schedule Trigger → cada 1 minuto
+3. HTTP Request a:
+   - http://172.30.0.10 (debería ser 200)
+   - http://172.30.0.11 (debería ser 200)
+   - http://172.30.0.21 (debería ser 503)
+4. IF status != 200 → guardar en PostgreSQL
+5. Enviar alerta a webhook
+
+LOS SERVIDORES MOCK YA ESTÁN EN LA MISMA RED QUE N8N
+después de ejecutar "docker network connect"
+
+=================================================================
+💾 OPCIONAL: GUARDAR EN POSTGRESQL
+=================================================================
+
+# Crear tabla de inventario
+docker exec -it n8n-local-postgres psql -U n8n_user -d n8n_db
+
+CREATE TABLE servidores_mock (
+  id SERIAL PRIMARY KEY,
+  nombre VARCHAR(255),
+  ip_mock VARCHAR(50),
+  status VARCHAR(20),
+  ultima_verificacion TIMESTAMP DEFAULT NOW()
+);
+
+INSERT INTO servidores_mock (nombre, ip_mock, status) VALUES
+('BOGOTA_PPAL', '172.30.0.10', 'UP'),
+('BOGOTA_BKP', '172.30.0.11', 'UP'),
+('DVR_TUNJA', '172.30.0.20', 'DOWN'),
+('CALI_LIMONAR', '172.30.0.21', 'DOWN');
+
+=================================================================
+✅ CHECKLIST FINAL
+=================================================================
+
+[ ] Archivos creados en Local/mock-servidores/
+[ ] docker compose up -d ejecutado sin errores
+[ ] 2 servidores UP respondiendo en puertos 9001 y 9002
+[ ] 1 servidor DOWN (dvr-tunja) con exit 1
+[ ] 1 servidor con error 503 (cali-limonar)
+[ ] Redes conectadas: mock-positiva + n8n-network
+[ ] n8n puede hacer ping a 172.30.0.10 y 172.30.0.11
+[ ] n8n NO puede hacer ping a 172.30.0.20 (DOWN)
+[ ] Workflow de monitoreo creado en n8n
+[ ] Alertas funcionando cuando servidor cae
+
+=================================================================
+📝 PRÓXIMOS PASOS
+=================================================================
+
+1. Hacer git commit de los archivos nuevos
+2. git push para subirlos al repositorio
+3. En dev@dev: git pull y levantar los mocks
+4. Crear workflow en n8n que monitoree los 4 servidores
+5. Simular fallas (docker stop bogota-matriz-ppal)
+6. Verificar que n8n detecta y alerta correctamente
+7. Integrar con sistema de tickets (Aranda)
+
+=================================================================
+🎉 TODO LISTO!
+
+Tienes 4 servidores mock basados en datos reales de SolarWinds
+conectados con tu n8n local para probar monitoreo, alertas
+y creación automática de tickets.
+
+Documentación completa en:
+  - README.txt
+  - COMANDOS-INTEGRACION.txt
+
+=================================================================

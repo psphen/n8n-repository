@@ -1,0 +1,202 @@
+=================================================================
+COMANDOS PARA CONECTAR SERVIDORES MOCK CON N8N LOCAL
+=================================================================
+
+📋 PASO 1: LEVANTAR SERVIDORES MOCK
+=================================================================
+
+cd ~/n8n-repository/Local/mock-servidores
+docker compose up -d
+
+
+📋 PASO 2: CONECTAR REDES DOCKER (n8n ↔ mock servers)
+=================================================================
+
+# Conectar n8n mains a la red de mock servers
+docker network connect mock-positiva n8n-local-main1
+docker network connect mock-positiva n8n-local-main2
+
+# Conectar workers
+docker network connect mock-positiva n8n-local-worker-1
+docker network connect mock-positiva n8n-local-worker-2
+docker network connect mock-positiva n8n-local-worker-3
+
+# Conectar nginx load balancer
+docker network connect mock-positiva n8n-local-nginx
+
+
+📋 PASO 3: VERIFICAR CONECTIVIDAD DESDE N8N
+=================================================================
+
+# Ping desde n8n main1 a servidores UP
+docker exec n8n-local-main1 ping -c 2 172.30.0.10
+docker exec n8n-local-main1 ping -c 2 172.30.0.11
+
+# Ping a servidor DOWN (no debería responder)
+docker exec n8n-local-main1 ping -c 2 172.30.0.20
+
+# HTTP request desde n8n
+docker exec n8n-local-main1 wget -O- http://172.30.0.10 2>&1 | head -10
+docker exec n8n-local-main1 wget -O- http://172.30.0.11 2>&1 | head -10
+
+
+📋 PASO 4: CREAR WORKFLOW DE MONITOREO EN N8N
+=================================================================
+
+Importa este JSON en n8n local (http://localhost:8080):
+
+{
+  "name": "Monitor Mock Servers",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "name": "Every 1 Minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [850, 400]
+    }
+  ],
+  "connections": {}
+}
+
+
+📋 PASO 5: PROBAR ALERTAS
+=================================================================
+
+# Detener un servidor UP para simular falla
+docker stop bogota-matriz-ppal
+
+# n8n debería detectar que 172.30.0.10 ya no responde
+
+# Volver a levantar
+docker start bogota-matriz-ppal
+
+
+📋 PASO 6: INSERTAR DATOS EN POSTGRESQL
+=================================================================
+
+# Conectar a PostgreSQL
+docker exec -it n8n-local-postgres psql -U n8n_user -d n8n_db
+
+# Crear tabla de inventario
+CREATE TABLE servidores_mock (
+  id SERIAL PRIMARY KEY,
+  nombre VARCHAR(255),
+  ip_mock VARCHAR(50),
+  ip_real VARCHAR(50),
+  puerto INT,
+  node_id INT,
+  tipo VARCHAR(255),
+  vendor VARCHAR(100),
+  status VARCHAR(20),
+  ultima_verificacion TIMESTAMP DEFAULT NOW()
+);
+
+# Insertar los 4 servidores
+INSERT INTO servidores_mock (nombre, ip_mock, ip_real, puerto, node_id, tipo, vendor, status) VALUES
+('BOGOTA_CASA_MATRIZ_PPAL', '172.30.0.10', '192.168.1.2', 9001, 3, 'Cisco C8200-1N-4T', 'HPE', 'UP'),
+('BOGOTA_CASA_MATRIZ_BKP', '172.30.0.11', '192.168.1.3', 9002, 1, 'Cisco C8200-1N-4T', 'HPE', 'UP'),
+('DVR_TUNJA', '172.30.0.20', '10.0.120.5', NULL, 338, 'Unknown', NULL, 'DOWN'),
+('CALI_LIMONAR_PPAL', '172.30.0.21', '10.0.30.4', 9003, 597, 'Cisco C1111', NULL, 'DOWN');
+
+# Ver datos
+SELECT * FROM servidores_mock;
+
+
+📋 PASO 7: WORKFLOW N8N COMPLETO PARA MONITOREO
+=================================================================
+
+Nodos del workflow:
+
+1. Schedule Trigger → cada 1 minuto
+
+2. Code Node → generar lista de servidores
+   ▸▸▸
+   return [
+     { json: { name: 'BOGOTA_PPAL', ip: '172.30.0.10', port: 80 } },
+     { json: { name: 'BOGOTA_BKP', ip: '172.30.0.11', port: 80 } },
+     { json: { name: 'DVR_TUNJA', ip: '172.30.0.20', port: null } },
+     { json: { name: 'CALI_LIMONAR', ip: '172.30.0.21', port: 80 } }
+   ];
+   ▸▸▸
+
+3. HTTP Request (por cada servidor)
+   - URL: http://{{ $json.ip }}
+   - Method: GET
+   - Continue On Fail: true
+
+4. Code Node → evaluar resultado
+   ▸▸▸
+   const status = $input.item.json.statusCode === 200 ? 'UP' : 'DOWN';
+   return {
+     json: {
+       servidor: $('Code').item.json.name,
+       ip: $('Code').item.json.ip,
+       status: status,
+       timestamp: new Date().toISOString()
+     }
+   };
+   ▸▸▸
+
+5. IF Node → si status == 'DOWN'
+
+6. PostgreSQL → INSERT alerta
+   INSERT INTO solarwinds_alertas (servidor, ip, estado, detalle)
+   VALUES ('{{ $json.servidor }}', '{{ $json.ip }}', 'DOWN', 'Mock server no responde');
+
+7. Webhook (opcional) → notificar a Slack/Teams
+
+
+📋 PASO 8: VER RESULTADOS EN TIEMPO REAL
+=================================================================
+
+# Ver logs de n8n main
+docker logs n8n-local-main1 --tail 50 -f
+
+# Ver estado de servidores mock
+docker compose ps
+
+# Ver alertas en PostgreSQL
+docker exec -it n8n-local-postgres psql -U n8n_user -d n8n_db -c \
+  "SELECT * FROM solarwinds_alertas ORDER BY fecha_alerta DESC LIMIT 10;"
+
+
+📋 RESUMEN DE IPs PARA N8N
+=================================================================
+
+┌────────────────────────────┬────────────────┬────────┐
+│ Servidor                   │ IP Mock        │ Puerto │
+├────────────────────────────┼────────────────┼────────┤
+│ BOGOTA_CASA_MATRIZ_PPAL    │ 172.30.0.10    │ 9001   │
+│ BOGOTA_CASA_MATRIZ_BKP     │ 172.30.0.11    │ 9002   │
+│ DVR_TUNJA (DOWN)           │ 172.30.0.20    │ -      │
+│ CALI_LIMONAR_PPAL (503)    │ 172.30.0.21    │ 9003   │
+└────────────────────────────┴────────────────┴────────┘
+
+=================================================================
+✅ TODO LISTO!
+
+Ahora tienes 4 servidores mock conectados con tu n8n local.
+Puedes crear workflows que los monitoreen, detecten fallos
+y generen alertas automáticamente.
+
+Acceso n8n local: http://localhost:8080
+=================================================================

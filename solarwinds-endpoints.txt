@@ -1,0 +1,291 @@
+================================================================================
+ENDPOINTS SOLARWINDS ORION - POSITIVA
+================================================================================
+
+Servidor: https://10.114.158.9:17774/SolarWinds/InformationService/v3/Json/Query
+Credenciales: POSITIVA\administradorcmdb / 7k6`3-z/a1nX.KQ[
+
+================================================================================
+1. NODOS CAÍDOS (Prioridad: CRÍTICA)
+================================================================================
+Descripción: Servidores que actualmente están DOWN
+Uso: Crear ticket automático en Aranda cuando un servidor cae
+
+URL:
+https://10.114.158.9:17774/SolarWinds/InformationService/v3/Json/Query?query=SELECT+NodeID,+Caption,+IP_Address,+DNS,+StatusDescription,+Location,+LastBoot,+DetailsUrl+FROM+Orion.Nodes+WHERE+Status=2
+
+Campos devueltos:
+- NodeID: ID único del nodo
+- Caption: Nombre del servidor
+- IP_Address: Dirección IP
+- DNS: Nombre DNS
+- StatusDescription: Descripción del problema
+- Location: Ubicación física
+- LastBoot: Último reinicio
+- DetailsUrl: URL directa al detalle en SolarWinds
+
+
+================================================================================
+2. ALERTAS ACTIVAS (Prioridad: ALTA)
+================================================================================
+Descripción: Alertas que no han sido reconocidas
+Uso: Crear tickets para alertas pendientes
+
+URL:
+https://10.114.158.9:17774/SolarWinds/InformationService/v3/Json/Query?query=SELECT+AlertObjectID,+AlertName,+Message,+ObjectName,+EntityCaption,+Acknowledged,+TriggerTimeStamp,+EntityDetailsUrl+FROM+Orion.AlertActive+WHERE+Acknowledged=False+ORDER+BY+TriggerTimeStamp+DESC
+
+Campos devueltos:
+- AlertObjectID: ID de la alerta
+- AlertName: Nombre de la alerta
+- Message: Mensaje descriptivo
+- ObjectName: Objeto afectado
+- EntityCaption: Entidad relacionada
+- Acknowledged: Estado de reconocimiento
+- TriggerTimeStamp: Cuándo se disparó
+- EntityDetailsUrl: URL al detalle
+
+
+================================================================================
+3. DISCOS CASI LLENOS (Prioridad: MEDIA - Preventiva)
+================================================================================
+Descripción: Volúmenes con más del 85% de uso
+Uso: Crear ticket preventivo antes de que se llene completamente
+
+URL:
+https://10.114.158.9:17774/SolarWinds/InformationService/v3/Json/Query?query=SELECT+V.NodeID,+N.Caption,+V.Caption+AS+Volume,+V.VolumeSize,+V.VolumeSpaceUsed,+V.VolumePercentUsed,+V.Status+FROM+Orion.Volumes+V+INNER+JOIN+Orion.Nodes+N+ON+V.NodeID=N.NodeID+WHERE+V.VolumePercentUsed>85+AND+V.Status!=9+ORDER+BY+V.VolumePercentUsed+DESC
+
+Campos devueltos:
+- NodeID: ID del servidor
+- Caption: Nombre del servidor
+- Volume: Nombre del volumen (C:, D:, etc)
+- VolumeSize: Tamaño total
+- VolumeSpaceUsed: Espacio usado
+- VolumePercentUsed: Porcentaje usado
+- Status: Estado del volumen
+
+
+================================================================================
+4. INTERFACES DE RED CAÍDAS (Prioridad: ALTA)
+================================================================================
+Descripción: Enlaces de red que están DOWN
+Uso: Alertar cuando interfaces críticas caen
+
+URL:
+https://10.114.158.9:17774/SolarWinds/InformationService/v3/Json/Query?query=SELECT+I.InterfaceID,+N.Caption+AS+Node,+I.InterfaceName,+I.Status,+I.LastChange,+I.InBps,+I.OutBps+FROM+Orion.NPM.Interfaces+I+INNER+JOIN+Orion.Nodes+N+ON+I.NodeID=N.NodeID+WHERE+I.Status=2+AND+I.InterfaceType!=24
+
+Campos devueltos:
+- InterfaceID: ID de la interfaz
+- Node: Nombre del servidor
+- InterfaceName: Nombre de la interfaz
+- Status: Estado (2=Down)
+- LastChange: Última vez que cambió de estado
+- InBps: Tráfico entrante
+- OutBps: Tráfico saliente
+
+
+================================================================================
+5. CPU ALTA (Prioridad: MEDIA)
+================================================================================
+Descripción: Servidores con CPU mayor al 90%
+Uso: Crear ticket para investigar rendimiento
+
+URL:
+https://10.114.158.9:17774/SolarWinds/InformationService/v3/Json/Query?query=SELECT+NodeID,+Caption,+IP_Address,+CPULoad,+Location+FROM+Orion.Nodes+WHERE+CPULoad>90+AND+Status=1+ORDER+BY+CPULoad+DESC
+
+Campos devueltos:
+- NodeID: ID del servidor
+- Caption: Nombre del servidor
+- IP_Address: IP
+- CPULoad: Carga de CPU (0-100)
+- Location: Ubicación
+
+
+================================================================================
+6. MEMORIA ALTA (Prioridad: MEDIA)
+================================================================================
+Descripción: Servidores con más del 85% de memoria usada
+Uso: Alertar antes de que se quede sin RAM
+
+URL:
+https://10.114.158.9:17774/SolarWinds/InformationService/v3/Json/Query?query=SELECT+NodeID,+Caption,+IP_Address,+PercentMemoryUsed,+TotalMemory+FROM+Orion.Nodes+WHERE+PercentMemoryUsed>85+AND+Status=1+ORDER+BY+PercentMemoryUsed+DESC
+
+Campos devueltos:
+- NodeID: ID del servidor
+- Caption: Nombre del servidor
+- IP_Address: IP
+- PercentMemoryUsed: Porcentaje de RAM usada
+- TotalMemory: Memoria total instalada
+
+
+================================================================================
+7. APLICACIONES CON PROBLEMAS (Prioridad: ALTA)
+================================================================================
+Descripción: Aplicaciones/Servicios que no están funcionando correctamente
+Uso: Crear ticket cuando servicios críticos fallan
+
+URL:
+https://10.114.158.9:17774/SolarWinds/InformationService/v3/Json/Query?query=SELECT+ApplicationID,+Name,+Status,+StatusDescription,+NodeName+FROM+Orion.APM.Application+WHERE+Status!=1+ORDER+BY+Name
+
+Campos devueltos:
+- ApplicationID: ID de la aplicación
+- Name: Nombre de la aplicación
+- Status: Estado (1=OK, otros=problema)
+- StatusDescription: Descripción del problema
+- NodeName: Servidor donde corre
+
+
+================================================================================
+8. EVENTOS RECIENTES (Prioridad: INFO)
+================================================================================
+Descripción: Últimos 100 eventos de las últimas 24 horas
+Uso: Feed de eventos para análisis y contexto
+
+URL:
+https://10.114.158.9:17774/SolarWinds/InformationService/v3/Json/Query?query=SELECT+TOP+100+EventID,+EventTime,+EventType,+Message,+NetworkNode+FROM+Orion.Events+WHERE+EventTime>GETDATE()-1+AND+EventType!=5200+ORDER+BY+EventTime+DESC
+
+Campos devueltos:
+- EventID: ID del evento
+- EventTime: Fecha/hora del evento
+- EventType: Tipo de evento
+- Message: Mensaje descriptivo
+- NetworkNode: Servidor relacionado
+
+
+================================================================================
+9. NODOS CON PÉRDIDA DE PAQUETES (Prioridad: MEDIA)
+================================================================================
+Descripción: Servidores con más del 50% de packet loss (intermitencia)
+Uso: Problemas de red - crear ticket
+
+URL:
+https://10.114.158.9:17774/SolarWinds/InformationService/v3/Json/Query?query=SELECT+NodeID,+Caption,+IP_Address,+ResponseTime,+PercentLoss+FROM+Orion.Nodes+WHERE+PercentLoss>50+AND+Status!=9+ORDER+BY+PercentLoss+DESC
+
+Campos devueltos:
+- NodeID: ID del servidor
+- Caption: Nombre del servidor
+- IP_Address: IP
+- ResponseTime: Tiempo de respuesta en ms
+- PercentLoss: Porcentaje de paquetes perdidos
+
+
+================================================================================
+10. DASHBOARD - RESUMEN GENERAL (Prioridad: INFO)
+================================================================================
+Descripción: Contador de servidores por estado
+Uso: Vista rápida del estado global de la infraestructura
+
+URL:
+https://10.114.158.9:17774/SolarWinds/InformationService/v3/Json/Query?query=SELECT+Status,+COUNT(*)+AS+Total+FROM+Orion.Nodes+WHERE+Status!=9+GROUP+BY+Status
+
+Campos devueltos:
+- Status: Estado (1=Up, 2=Down, 3=Warning, etc)
+- Total: Cantidad de servidores en ese estado
+
+Estados:
+- 1 = Up (Verde)
+- 2 = Down (Rojo)
+- 3 = Warning (Amarillo)
+- 9 = Unmanaged (No monitoreado)
+- 12 = Unknown
+
+
+================================================================================
+11. TODOS LOS NODOS (Inventario Completo)
+================================================================================
+Descripción: Lista completa de todos los servidores monitoreados
+Uso: Sincronizar inventario en PostgreSQL
+
+URL:
+https://10.114.158.9:17774/SolarWinds/InformationService/v3/Json/Query?query=SELECT+NodeID,+Caption,+IP_Address,+DNS,+Status,+StatusDescription,+Location,+Vendor,+MachineType,+LastBoot+FROM+Orion.Nodes+ORDER+BY+Caption
+
+Campos devueltos:
+- NodeID: ID único
+- Caption: Nombre del servidor
+- IP_Address: IP
+- DNS: Nombre DNS
+- Status: Estado actual
+- StatusDescription: Descripción del estado
+- Location: Ubicación física
+- Vendor: Fabricante (HPE, Dell, VMware, etc)
+- MachineType: Tipo de equipo
+- LastBoot: Último reinicio
+
+
+================================================================================
+EJEMPLO DE USO EN cURL (Windows Git Bash):
+================================================================================
+
+curl -k -u 'POSITIVA\administradorcmdb:7k6`3-z/a1nX.KQ[' "https://10.114.158.9:17774/SolarWinds/InformationService/v3/Json/Query?query=SELECT+NodeID,+Caption,+IP_Address,+Status+FROM+Orion.Nodes+WHERE+Status=2"
+
+
+================================================================================
+FLUJO DE TRABAJO SUGERIDO EN N8N:
+================================================================================
+
+1. SCHEDULE TRIGGER (cada 5 minutos)
+   ↓
+2. HTTP REQUEST → Endpoint #1 (Nodos caídos)
+   ↓
+3. IF tiene resultados (length > 0)
+   ↓
+4. SPLIT IN BATCHES (procesar de 5 en 5)
+   ↓
+5. POSTGRESQL → Verificar si ya existe ticket para ese NodeID
+   ↓
+6. IF NO existe ticket
+   ↓
+7. HTTP REQUEST → API Aranda (crear ticket)
+   Body JSON:
+   {
+     "subject": "Servidor Caído: {{Caption}}",
+     "description": "{{StatusDescription}}\nIP: {{IP_Address}}\nLocation: {{Location}}",
+     "priority": "High",
+     "category": "Infrastructure",
+     "source": "SolarWinds"
+   }
+   ↓
+8. POSTGRESQL → Guardar registro del ticket
+   INSERT INTO tickets (node_id, ticket_id, created_at, status)
+   ↓
+9. REPETIR con otros endpoints (#2, #3, #4...)
+
+
+================================================================================
+NOTAS IMPORTANTES:
+================================================================================
+
+1. El parámetro Status en Orion.Nodes:
+   - 1 = Up
+   - 2 = Down
+   - 3 = Warning
+   - 9 = Unmanaged (no se monitorea actualmente)
+
+2. Siempre usar -k o ignorar SSL ya que SolarWinds usa certificado autofirmado
+
+3. La API devuelve JSON con estructura:
+   {
+     "results": [
+       { "NodeID": 123, "Caption": "SERVER01", ... },
+       { "NodeID": 124, "Caption": "SERVER02", ... }
+     ]
+   }
+
+4. Rate limiting: No exceder 100 requests/minuto para no sobrecargar SolarWinds
+
+5. Credenciales deben ser URL encoded si se usan caracteres especiales
+
+6. Todos los timestamps en SolarWinds están en UTC
+
+7. Para n8n usar nodo "HTTP Request":
+   - Method: GET
+   - Authentication: Basic Auth
+   - User: POSITIVA\administradorcmdb
+   - Password: 7k6`3-z/a1nX.KQ[
+   - SSL Certificate Verification: false
+   - Response Format: JSON
+
+
+================================================================================
+FIN DEL DOCUMENTO
+================================================================================
+Última actualización: 2026-03-31

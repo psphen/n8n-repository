@@ -1,0 +1,86 @@
+===============================================================
+CONSULTAR ALERTAS EN LA BASE DE DATOS
+===============================================================
+
+Los comandos SSH están tardando mucho. Ejecuta esto directamente:
+
+OPCIÓN 1 - DESDE TU PC (con VPN):
+----------------------------------
+PGPASSWORD=PostgresSQL psql -h 10.114.158.77 -U n8n_user -d n8n_db -c "SELECT * FROM solarwinds_alertas ORDER BY fecha_alerta DESC LIMIT 20;"
+
+
+OPCIÓN 2 - DESDE N8N (nodo Execute Query):
+-------------------------------------------
+1. Crea un nuevo workflow en n8n
+2. Agrega nodo "Execute Query" (PostgreSQL)
+3. Usa tus credenciales PostgreSQL
+4. Query:
+
+SELECT 
+    id,
+    servidor,
+    ip,
+    dns,
+    estado,
+    detalle,
+    ubicacion,
+    fecha_alerta,
+    resuelto
+FROM solarwinds_alertas
+ORDER BY fecha_alerta DESC
+LIMIT 50;
+
+
+OPCIÓN 3 - VER SOLO CONTEO:
+----------------------------
+PGPASSWORD=PostgresSQL psql -h 10.114.158.77 -U n8n_user -d n8n_db -c "SELECT COUNT(*) as total_alertas FROM solarwinds_alertas;"
+
+
+OPCIÓN 4 - VER ÚLTIMAS 5 ALERTAS (RESUMEN):
+--------------------------------------------
+PGPASSWORD=PostgresSQL psql -h 10.114.158.77 -U n8n_user -d n8n_db -c "
+SELECT 
+    id,
+    servidor,
+    ip,
+    estado,
+    TO_CHAR(fecha_alerta, 'YYYY-MM-DD HH24:MI:SS') as hora,
+    resuelto
+FROM solarwinds_alertas
+ORDER BY fecha_alerta DESC
+LIMIT 5;
+"
+
+
+OPCIÓN 5 - AGRUPAR POR SERVIDOR:
+---------------------------------
+PGPASSWORD=PostgresSQL psql -h 10.114.158.77 -U n8n_user -d n8n_db -c "
+SELECT 
+    servidor,
+    COUNT(*) as total_veces_caido,
+    MAX(fecha_alerta) as ultima_vez
+FROM solarwinds_alertas
+GROUP BY servidor
+ORDER BY total_veces_caido DESC;
+"
+
+
+EXPORTAR A CSV:
+---------------
+PGPASSWORD=PostgresSQL psql -h 10.114.158.77 -U n8n_user -d n8n_db -c "
+COPY (
+    SELECT * FROM solarwinds_alertas 
+    ORDER BY fecha_alerta DESC
+) TO STDOUT WITH CSV HEADER;
+" > alertas_solarwinds.csv
+
+
+VER EN TIEMPO REAL (MIENTRAS CORRE EL WORKFLOW):
+-------------------------------------------------
+watch -n 5 "PGPASSWORD=PostgresSQL psql -h 10.114.158.77 -U n8n_user -d n8n_db -t -c 'SELECT COUNT(*) FROM solarwinds_alertas;'"
+
+
+NOTA: Si aún no ves datos, el workflow puede que:
+1. No se haya ejecutado todavía (revisa cada 5 minutos)
+2. No haya servidores caídos en este momento
+3. Tenga un error en n8n (revisa Executions)

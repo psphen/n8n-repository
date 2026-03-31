@@ -1,0 +1,185 @@
+===============================================================================
+WORKFLOW N8N: MONITOREO DE SERVIDORES CAÍDOS EN SOLARWINDS
+===============================================================================
+
+ARCHIVO: workflow-servidores-caidos.json
+
+-------------------------------------------------------------------------------
+¿QUÉ HACE ESTE WORKFLOW?
+-------------------------------------------------------------------------------
+
+1. Cada 5 minutos consulta la API de SolarWinds
+2. Obtiene la lista de servidores con Status = 2 (CAÍDOS)
+3. Si encuentra servidores caídos:
+   - Envía notificación a Slack/Webhook
+   - Guarda el registro en PostgreSQL
+4. Si NO hay servidores caídos: no hace nada
+
+-------------------------------------------------------------------------------
+CÓMO IMPORTARLO EN N8N
+-------------------------------------------------------------------------------
+
+1. Abre n8n en: https://10.115.25.101 (producción) o http://localhost:8080 (local)
+
+2. Ve a: Workflows → Import from File → Selecciona workflow-servidores-caidos.json
+
+3. El workflow se importará con todos los nodos conectados
+
+-------------------------------------------------------------------------------
+CONFIGURACIONES NECESARIAS (IMPORTANTE)
+-------------------------------------------------------------------------------
+
+ANTES de activar el workflow, debes configurar:
+
+1. CREDENCIAL: SolarWinds API
+   - Ve a: Settings → Credentials → Add Credential → HTTP Basic Auth
+   - Nombre: "SolarWinds API"
+   - Username: POSITIVA\administradorcmdb
+   - Password: 7k6`3-z/a1nX.KQ[
+   - Asocia esta credencial al nodo "Consultar SolarWinds"
+
+2. CREDENCIAL: PostgreSQL n8n
+   - Ve a: Settings → Credentials → Add Credential → Postgres
+   - Nombre: "PostgreSQL n8n"
+   - Host: 10.114.158.77 (producción) o postgres (local)
+   - Port: 5432
+   - Database: n8n_db
+   - User: n8n_user
+   - Password: PostgresSQL
+   - Asocia esta credencial al nodo "Guardar en PostgreSQL"
+
+3. CREAR TABLA EN POSTGRESQL:
+
+   Ejecuta en PostgreSQL:
+
+   CREATE TABLE IF NOT EXISTS solarwinds_alertas (
+     id SERIAL PRIMARY KEY,
+     timestamp TIMESTAMP NOT NULL,
+     servidor VARCHAR(255),
+     ip VARCHAR(50),
+     dns VARCHAR(255),
+     estado VARCHAR(50),
+     detalle TEXT,
+     ubicacion VARCHAR(255),
+     url_solarwinds TEXT,
+     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+   );
+
+   CREATE INDEX idx_solarwinds_alertas_timestamp ON solarwinds_alertas(timestamp);
+   CREATE INDEX idx_solarwinds_alertas_servidor ON solarwinds_alertas(servidor);
+
+4. CONFIGURAR WEBHOOK/SLACK (OPCIONAL):
+
+   Opción A - Slack:
+   - Ve a: https://api.slack.com/messaging/webhooks
+   - Crea un Incoming Webhook
+   - Copia la URL (ejemplo: https://hooks.slack.com/services/T00/B00/XXX)
+   - Pégala en el nodo "Enviar a Slack/Webhook" → URL
+
+   Opción B - Microsoft Teams:
+   - En Teams: Connectors → Incoming Webhook
+   - Copia la URL
+   - Pégala en el nodo "Enviar a Slack/Webhook" → URL
+   - Cambia el body a formato Teams (JSON card)
+
+   Opción C - Webhook genérico:
+   - Usa cualquier URL que acepte POST con JSON
+   - El formato del mensaje está en el nodo
+
+   Opción D - Desactivar:
+   - Si no quieres notificaciones, elimina el nodo "Enviar a Slack/Webhook"
+   - Solo guardará en PostgreSQL
+
+-------------------------------------------------------------------------------
+PERSONALIZACIÓN
+-------------------------------------------------------------------------------
+
+CAMBIAR FRECUENCIA DE CHEQUEO:
+- Nodo "Schedule Trigger" → Interval → Minutes: 5
+- Cambia "5" por el intervalo que desees (1, 10, 15, etc.)
+
+AGREGAR MÁS CAMPOS:
+- Nodo "Consultar SolarWinds" → Query
+- Agrega más campos en el SELECT (ejemplo: MachineType, Vendor)
+
+FILTRAR POR UBICACIÓN:
+- Nodo "Consultar SolarWinds" → Query
+- Agrega: AND Location LIKE '%DataCenter%'
+
+ENVIAR EMAIL EN LUGAR DE SLACK:
+- Elimina el nodo "Enviar a Slack/Webhook"
+- Agrega nodo "Send Email"
+- Configura SMTP y usa los datos de {{ $json }}
+
+-------------------------------------------------------------------------------
+PROBAR EL WORKFLOW
+-------------------------------------------------------------------------------
+
+1. NO ACTIVAR aún — primero prueba manualmente:
+   - Clic en "Schedule Trigger"
+   - Clic en "Execute Node" (icono play)
+
+2. Verifica que:
+   - El nodo "Consultar SolarWinds" se ejecuta sin errores
+   - Si hay servidores caídos, fluye por "Preparar Datos"
+   - Si NO hay caídos, fluye por "No Actuar"
+
+3. Revisa los datos en cada nodo (clic en el nodo)
+
+4. Si todo está OK → activa el workflow con el switch arriba
+
+-------------------------------------------------------------------------------
+MONITOREO DEL WORKFLOW
+-------------------------------------------------------------------------------
+
+Ver ejecuciones pasadas:
+- Executions → filtra por nombre del workflow
+- Verifica si tuvo errores
+
+Ver registros en PostgreSQL:
+SELECT * FROM solarwinds_alertas
+ORDER BY timestamp DESC
+LIMIT 50;
+
+Ver solo servidores únicos caídos hoy:
+SELECT DISTINCT servidor, ip, MAX(timestamp) as ultimo_reporte
+FROM solarwinds_alertas
+WHERE DATE(timestamp) = CURRENT_DATE
+GROUP BY servidor, ip
+ORDER BY ultimo_reporte DESC;
+
+-------------------------------------------------------------------------------
+TROUBLESHOOTING
+-------------------------------------------------------------------------------
+
+ERROR: "401 Unauthorized" en "Consultar SolarWinds"
+→ Revisa las credenciales de SolarWinds API
+
+ERROR: "SSL certificate problem"
+→ Verifica que "Allow Unauthorized Certs" esté activado en el nodo HTTP
+
+ERROR: "relation solarwinds_alertas does not exist"
+→ Crea la tabla con el SQL de arriba
+
+ERROR: No llegan notificaciones a Slack
+→ Verifica la URL del webhook, debe empezar con https://hooks.slack.com
+
+ERROR: El workflow no se ejecuta automáticamente
+→ Verifica que esté ACTIVADO (switch verde arriba del workflow)
+
+-------------------------------------------------------------------------------
+EXPANSIÓN FUTURA
+-------------------------------------------------------------------------------
+
+Este workflow es la base. Puedes agregar:
+
+1. Crear tickets en Aranda automáticamente
+2. Intentar reiniciar el servidor por SSH
+3. Enviar SMS con Twilio
+4. Publicar en dashboard web
+5. Integrar con PagerDuty/OpsGenie
+6. Correlacionar con logs de aplicaciones
+
+Consulta solarwinds-endpoints.txt para más queries útiles.
+
+===============================================================================
