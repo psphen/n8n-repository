@@ -79,7 +79,7 @@ services:
       - N8N_EDITOR_BASE_URL=http://localhost:8080
       - WEBHOOK_URL=http://localhost:8080
       - N8N_PROXY_HOPS=1
-      - N8N_PUSH_BACKEND=websocket
+      - N8N_PUSH_BACKEND=sse
     volumes:
       - n8n_main1_data:/home/node/.n8n
     depends_on:
@@ -112,7 +112,7 @@ services:
       - N8N_EDITOR_BASE_URL=http://localhost:8080
       - WEBHOOK_URL=http://localhost:8080
       - N8N_PROXY_HOPS=1
-      - N8N_PUSH_BACKEND=websocket
+      - N8N_PUSH_BACKEND=sse
     volumes:
       - n8n_main2_data:/home/node/.n8n
     depends_on:

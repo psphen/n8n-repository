@@ -1,0 +1,98 @@
+═══════════════════════════════════════════════════════════
+PUERTOS DE LOS SERVICIOS MOCK - DOCKER COMPOSE
+═══════════════════════════════════════════════════════════
+
+SERVIDORES ACTIVOS (UP) ✅
+═══════════════════════════════════════════════════════════
+
+1. BOGOTA_CASA_MATRIZ_PPAL
+   - Puerto: 9001
+   - URL: http://192.168.10.203:9001
+   - IP interna: 172.30.0.10
+   - Estado: HTTP 200 OK
+   - Healthcheck: ✅ Cada 10 segundos
+
+2. BOGOTA_CASA_MATRIZ_BKP
+   - Puerto: 9002
+   - URL: http://192.168.10.203:9002
+   - IP interna: 172.30.0.11
+   - Estado: HTTP 200 OK
+   - Healthcheck: ✅ Cada 10 segundos
+
+
+SERVIDORES CAÍDOS (DOWN) ❌
+═══════════════════════════════════════════════════════════
+
+3. DVR_TUNJA
+   - Puerto: N/A (no expone puerto)
+   - IP interna: 172.30.0.20
+   - Estado: Contenedor muerto (exit 1)
+   - Simulación: Servidor completamente caído, no responde ping ni HTTP
+   - Restart: NO (queda permanentemente DOWN)
+
+4. CALI_LIMONAR_PPAL
+   - Puerto: 9003
+   - URL: http://192.168.10.203:9003
+   - IP interna: 172.30.0.21
+   - Estado: HTTP 503 Service Unavailable
+   - Simulación: Servidor arriba pero servicio caído
+
+
+RESUMEN PARA N8N
+═══════════════════════════════════════════════════════════
+
+URLs a monitorear cada 5 minutos:
+
+✅ http://192.168.10.203:9001  → Debería retornar 200 OK
+✅ http://192.168.10.203:9002  → Debería retornar 200 OK
+❌ http://192.168.10.203:9003  → Retorna 503 Error
+❌ http://192.168.10.203:N/A   → DVR Tunja (ping 172.30.0.20 = timeout)
+
+
+VERIFICACIÓN MANUAL
+═══════════════════════════════════════════════════════════
+
+Desde el servidor dev@dev:
+
+# Ver todos los contenedores
+docker ps -a | grep -E "bogota|cali|dvr"
+
+# Probar los puertos activos
+curl http://localhost:9001   # Debería mostrar página Bogotá Principal
+curl http://localhost:9002   # Debería mostrar página Bogotá Backup
+curl http://localhost:9003   # Debería mostrar error 503
+
+# Verificar estado de DVR Tunja (debe estar Exited)
+docker ps -a | grep dvr-tunja
+
+# Ping interno a los contenedores
+docker exec n8n-local-main1 ping -c 2 172.30.0.10  # OK
+docker exec n8n-local-main1 ping -c 2 172.30.0.11  # OK
+docker exec n8n-local-main1 ping -c 2 172.30.0.20  # FAIL (DVR caído)
+docker exec n8n-local-main1 ping -c 2 172.30.0.21  # OK (pero HTTP 503)
+
+
+PARA EL WORKFLOW N8N
+═══════════════════════════════════════════════════════════
+
+Configurar 3 HTTP Requests:
+
+Request 1:
+- URL: http://192.168.10.203:9001
+- Expected: Status 200
+- Nombre: BOGOTA_MATRIZ_PPAL
+
+Request 2:
+- URL: http://192.168.10.203:9002
+- Expected: Status 200
+- Nombre: BOGOTA_MATRIZ_BKP
+
+Request 3:
+- URL: http://192.168.10.203:9003
+- Expected: Status 503 (simula error)
+- Nombre: CALI_LIMONAR_DOWN
+
+Si quieres monitorear DVR Tunja con ping:
+- IP: 172.30.0.20
+- Método: ICMP (desde dentro de Docker network)
+- Expected: Timeout/No response

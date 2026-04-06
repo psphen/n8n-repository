@@ -254,7 +254,7 @@ async function deployServer(srv) {
 
 async function main() {
   console.log('\n╔══════════════════════════════════════════════════════════════╗');
-  console.log('║    DESPLIEGUE INFRAESTRUCTURA N8N  –  POSITIVA / ARTICS      ║');
+  console.log('║    DESPLIEGUE INFRAESTRUCTURA N8N  -  POSITIVA / ARTICS      ║');
   console.log('║    Contrato 0420-2026                                         ║');
   console.log('╠══════════════════════════════════════════════════════════════╣');
   console.log('║  Orden:  Redis → PostgreSQL → Main 1 → Worker → Main 2       ║');
