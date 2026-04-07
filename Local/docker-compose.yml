@@ -57,7 +57,7 @@ services:
 
   # ─── N8N MAIN 1 ───────────────────────────────────────────────
   n8n-main-1:
-    image: n8nio/n8n:2.8.4
+    image: n8nio/n8n:latest
     container_name: n8n-local-main1
     restart: always
     networks:
@@ -76,10 +76,10 @@ services:
       - DB_POSTGRESDB_PASSWORD=PostgresSQL
       - N8N_ENCRYPTION_KEY=main1VMn8nArtics
       - N8N_SECURE_COOKIE=false
-      - N8N_EDITOR_BASE_URL=http://localhost:8080
-      - WEBHOOK_URL=http://localhost:8080
+      - N8N_EDITOR_BASE_URL=http://192.168.10.203
+      - WEBHOOK_URL=http://192.168.10.203
       - N8N_PROXY_HOPS=1
-      - N8N_PUSH_BACKEND=sse
+      - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true
     volumes:
       - n8n_main1_data:/home/node/.n8n
     depends_on:
@@ -90,7 +90,7 @@ services:
 
   # ─── N8N MAIN 2 ───────────────────────────────────────────────
   n8n-main-2:
-    image: n8nio/n8n:2.8.4
+    image: n8nio/n8n:latest
     container_name: n8n-local-main2
     restart: always
     networks:
@@ -109,10 +109,10 @@ services:
       - DB_POSTGRESDB_PASSWORD=PostgresSQL
       - N8N_ENCRYPTION_KEY=main1VMn8nArtics
       - N8N_SECURE_COOKIE=false
-      - N8N_EDITOR_BASE_URL=http://localhost:8080
-      - WEBHOOK_URL=http://localhost:8080
+      - N8N_EDITOR_BASE_URL=http://192.168.10.203
+      - WEBHOOK_URL=http://192.168.10.203
       - N8N_PROXY_HOPS=1
-      - N8N_PUSH_BACKEND=sse
+      - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true
     volumes:
       - n8n_main2_data:/home/node/.n8n
     depends_on:
@@ -123,7 +123,7 @@ services:
 
   # ─── WORKERS ──────────────────────────────────────────────────
   n8n-worker-1:
-    image: n8nio/n8n:2.8.4
+    image: n8nio/n8n:latest
     container_name: n8n-local-worker-1
     restart: always
     networks:
@@ -150,7 +150,7 @@ services:
         condition: service_healthy
 
   n8n-worker-2:
-    image: n8nio/n8n:2.8.4
+    image: n8nio/n8n:latest
     container_name: n8n-local-worker-2
     restart: always
     networks:
@@ -177,7 +177,7 @@ services:
         condition: service_healthy
 
   n8n-worker-3:
-    image: n8nio/n8n:2.8.4
+    image: n8nio/n8n:latest
     container_name: n8n-local-worker-3
     restart: always
     networks:
